@@ -15,6 +15,8 @@
 %   "Bias" = estimate for directional offset
 %   "prl" = location on the monitor subjects spend the most time with gaze
 %
+% TO DO - add code for D, Area, 
+%       - make public version
 % Code written by Ashley M. Clark, 2024 Active Perception Lab
 
 load('dataAllSingleSize.mat');
@@ -23,6 +25,63 @@ dataAll2 = temp.dataAll2;
 %%% for default figs pick a trial you want to check analysis on
 trial = 1889;
 stimulusSpacingExperiment = 1.4; %all stimuli were spaced 1.4x C-C
+
+%%
+
+allProbsUnique = unique(dataAll.SameConeProb);
+for u = 1:length(allProbsUnique)
+    tempIdx = [];
+    tempIdx = find(dataAll.SameConeProb == allProbsUnique(u));
+    meanEachProb(u) = mean(dataAll.Area(tempIdx));
+end
+% mdlAll = fitlm((newDataAll.SameConeProb,(newDataAll.AreaP))
+tempVal = [allProbsUnique'];
+mdlAll = fitlm(tempVal,meanEachProb);
+
+figure;
+% hold on
+for ii = 1:length(unique([dataAll.SubjectID(:)]))
+    subplot(4,4,ii)
+    scatter1 = scatter([dataAll.SameConeProb(find(dataAll.Condition == 1 & ...
+        dataAll.SubjectID == ii))],...
+        [(dataAll.Area(find(dataAll.Condition == 1 & ...
+        dataAll.SubjectID == ii)))],...
+        'MarkerFaceColor',[.8 .8 .8],'MarkerEdgeColor',[.8 .8 .8]);
+    scatter1.MarkerFaceAlpha = 0;
+    scatter1.MarkerEdgeAlpha = 0;
+    if ii == 10
+        mdlEach{ii} = fitlm([dataAll.SameConeProb(find(dataAll.Condition == 1 & ...
+            dataAll.SubjectID == ii & dataAll.Area < 80))],...
+            ([(dataAll.Area(find(dataAll.Condition == 1 & ...
+            dataAll.SubjectID == ii & dataAll.Area < 80)))]));
+    else
+        mdlEach{ii} = fitlm([dataAll.SameConeProb(find(dataAll.Condition == 1 & ...
+            dataAll.SubjectID == ii))],([(dataAll.Area(find(dataAll.Condition == 1 & ...
+            dataAll.SubjectID == ii)))]));
+    end
+    hold on
+    plot(mdlEach{ii});
+    title(sprintf('p = %.2f, R-squared = %.2f',...
+        mdlEach{ii}.Coefficients.pValue(2),...
+        mdlEach{ii}.Rsquared.Ordinary));
+    if ii == 1
+        xlabel('Probability')
+        ylabel('Ocular Drift Area (arcmin^2)')
+    else
+        xlabel('');
+        ylabel('');
+    end
+    title(sprintf('S%i',ii))
+        text(.10,125,'p < 0.001');
+%     else
+%         text(.10,125,sprintf('p > %.2f',mdlEach{ii}.Coefficients.pValue(2)));
+%     end
+    text(.10,110,sprintf('R-squared = %.2f',mdlEach{ii}.Rsquared.Ordinary));
+    legend off
+    xlim ([0 .8])
+    ylim([0 150])
+    axis square
+end
 
 
 %% Figure 1B
@@ -152,7 +211,7 @@ temp = generateHeatMapSimple( ...
     x,... %flip along the vertical axis to match map
     -y, ...
     'Bins', 40,... %for a 20 window width, each bin is .5arcmin
-    'StimulusSize', stimSizeMost,...
+    'StimulusSize', threshold,...
     'AxisValue', 10,... %plus or minus
     'Uncrowded', 0,...
     'Borders', 1);
@@ -186,6 +245,9 @@ for ii = 1:length(unique([dataAll2.SubjectID(:)]))
     end
 end
 
+
+% [h,p] = ttest2(thresh(1:5,2)-thresh(1:5,1), ...
+%     thresh(6:end,2)-thresh(6:end,1));
 %% Figure 3C
 figure;
 for ii = 1:length(unique([dataAll.SubjectID(:)]))
@@ -259,7 +321,7 @@ temp = generateHeatMapSimple( ...
     [dataAll.X{idxSmall}],... %flip along the vertical axis to match map
     [dataAll.Y{idxSmall}], ...
     'Bins', 40,... %for a 20 window width, each bin is .5arcmin
-    'StimulusSize', stimSizeMost,...
+    'StimulusSize', thresh(1),...
     'AxisValue', 20,... %plus or minus
     'Uncrowded', 0,...
     'Borders', 1);
@@ -270,7 +332,7 @@ temp = generateHeatMapSimple( ...
     [dataAll.X{idxLarge}],... %flip along the vertical axis to match map
     [dataAll.Y{idxLarge}], ...
     'Bins', 40,... %for a 20 window width, each bin is .5arcmin
-    'StimulusSize', stimSizeMost,...
+    'StimulusSize', thresh(2),...
     'AxisValue', 20,... %plus or minus
     'Uncrowded', 0,...
     'Borders', 1);
@@ -284,33 +346,36 @@ for ii = 1:length(unique([dataAll.SubjectID(:)]))
             [dataAll.Perf(:)] < 3 & ...
             [dataAll.Condition(:)] == -1);
     areaPolyA{1,ii} = [dataAll.Area(idx)];
-    
+    meanPerf(1,ii) = mean([dataAll.Perf(idx)]);
     idx = [];
     idx = find([dataAll.SubjectID(:)] == ii & ...
             [dataAll.Perf(:)] < 3 & ...
             [dataAll.Condition(:)] == 1);
     areaPolyA{2,ii} = [dataAll.Area(idx)];
+    meanPerf(2,ii) = mean([dataAll.Perf(idx)]);
 end
+
+
 
 smallD = [];
 largeD = [];
-indSubBinUpper = ones(1,length(subjectsAll))*30;
-indSubBinLower = ones(1,length(subjectsAll))*70;
-[smallD,largeD] = calculatePerfProbAtThresh(indSubBinUpper,indSubBinLower,subjectsAll,...
-    dataAll,areaPolyA,'Area',1,saveStimInfo,smallD,largeD);
+indSubBinUpper = ones(1,length(unique([dataAll.SubjectID(:)])))*30;
+indSubBinLower = ones(1,length(unique([dataAll.SubjectID(:)])))*70;
+[smallD,largeD] = calculatePerfProbAtThresh(indSubBinUpper,indSubBinLower,unique([dataAll.SubjectID(:)]),...
+    dataAll,areaPolyA,'Area',1,smallD,largeD);
 indSubBinUpper(1) = 80;
 indSubBinLower(1) = 20;
 indSubBinUpper(2) = 75;
-indSubBinLower(2) = 10;
+indSubBinLower(2) = 20;
 indSubBinUpper(3) = 70;
 indSubBinLower(3) = 35;
 indSubBinUpper(4) = 70;
 indSubBinLower(4) = 20;
 indSubBinUpper(5) = 70; 
 indSubBinLower(5) = 40;
-indSubBinUpper(6) = 80;
+indSubBinUpper(6) = 60;
 indSubBinLower(6) = 60;
-indSubBinUpper(7) = 90;
+indSubBinUpper(7) = 88;
 indSubBinLower(7) = 41; 
 indSubBinUpper(8) = 60;
 indSubBinLower(8) = 50;
@@ -318,16 +383,16 @@ indSubBinUpper(9) = 70;
 indSubBinLower(9) = 20;
 indSubBinUpper(10) = 50;
 indSubBinLower(10) = 50;
-indSubBinUpper(11) = 60;
-indSubBinLower(11) = 55;
+indSubBinUpper(11) = 45;
+indSubBinLower(11) = 45;
 indSubBinUpper(12) = 50;
 indSubBinLower(12) = 30;
 indSubBinUpper(13) = 70;
 indSubBinLower(13) = 30;
 
+[smallD,largeD] = calculatePerfProbAtThresh(indSubBinUpper,indSubBinLower,unique([dataAll.SubjectID(:)]),...
+    dataAll,areaPolyA,'Area',2,smallD,largeD);
 
-[smallD,largeD] = calculatePerfProbAtThresh(indSubBinUpper,indSubBinLower,subjectsAll,...
-    dataAll,areaPolyA,'Area',2,saveStimInfo,smallD,largeD);
 [~,pU] = ttest(smallD.Unc.Performance,largeD.Unc.Performance);
 [~,pC] = ttest(smallD.Cro.Performance,largeD.Cro.Performance);
 
@@ -335,23 +400,40 @@ figure;
 makePlotPerfDiffUnityLine([smallD.Unc.Performance;smallD.Cro.Performance],...
     [largeD.Unc.Performance; largeD.Cro.Performance], pU, pC);
 suptitle('Area')
+saveas(gca,'AreaUnityLine.epsc');
+
+
+mean([smallD.Unc.Performance largeD.Unc.Performance])
+mean([smallD.Cro.Performance largeD.Cro.Performance])
+std([smallD.Unc.Performance largeD.Unc.Performance])
+std([smallD.Cro.Performance largeD.Cro.Performance])
+
+[h,p,ci,stats] = ttest([smallD.Unc.Performance largeD.Unc.Performance],...
+    [smallD.Cro.Performance largeD.Cro.Performance])
 
 %% Figure 4C
 figure;
-errorbar([1 2],[mean(smallD.Unc.Performance),...
-    mean(largeD.Unc.Performance)],[sem(smallD.Unc.Performance),...
+
+errorbar([1 2],([mean(smallD.Unc.Performance)-mean(meanPerf(1,:)),...
+    mean(largeD.Unc.Performance)-mean(meanPerf(1,:))]),...
+    [sem(smallD.Unc.Performance),...
     sem(largeD.Unc.Performance)],'-d','Color','b',...
     'MarkerFaceColor','b','MarkerSize',12);
 hold on
-errorbar([1 2],[mean(smallD.Cro.Performance),...
-    mean(largeD.Cro.Performance)],[sem(smallD.Cro.Performance),...
+errorbar([1 2],([mean(smallD.Cro.Performance)-mean(meanPerf(2,:)),...
+    mean(largeD.Cro.Performance)-mean(meanPerf(2,:))]),[sem(smallD.Cro.Performance),...
     sem(largeD.Cro.Performance)],'-d','Color','r',...
     'MarkerFaceColor','r','MarkerSize',12);
 xlim([0.5 2.5])
 xticks([1 2])
 xticklabels({'Small','Large'})
 xlabel('Fixation Area')
-ylabel('Proportion Correct')
+ylabel('Change in Performance from Threshold')
+line([0.5 2.5],[0 0],'LineStyle','--');
+% yticks([.8 .9 1])
+% ylim([.78 1.05])
+saveas(gca,'AreaThreshChange.epsc');
+
 
 %% Get Cone Probability for Trial 1
 
@@ -362,7 +444,7 @@ probSameCone(1) = coneAndFlankerProbability_OG(xTemp,stimSize,1.4);
 
 %% Figure 4D
 
-for ii = 1:length(subjectsAll)
+for ii = 1:length(unique([dataAll.SubjectID(:)]))
     idxTrials = find(dataAll.SubjectID == ii & ...
         dataAll.Condition == 1 & ...
         dataAll.Area < 200);
@@ -390,6 +472,7 @@ xticklabels({'Small','Large'})
 xlabel('Fixation Area')
 ylabel({'Probability of Cone Being Stimulated','by both Target and Flanker'})
 [~,pC] = ttest(perfSmall,perfLarge);
+saveas(gca,'ConeProbThreshChange.epsc');
 
 %% Figure 5B (7 subjects)
 clear thresh
@@ -401,7 +484,7 @@ for ii = 1:length(thresh)
         thresh{2,ii}],'-','Color',[.7 .7 .7]);
     hold on
 end
-threshMat = cell2mat(thresh)
+threshMat = cell2mat(thresh);
 
 errorbar([1 2],[mean(threshMat(1,:)) mean(threshMat(2,:))],...
     [sem(threshMat(1,:)) sem(threshMat(2,:))],'-o',...
@@ -414,6 +497,220 @@ ylabel('Nominal Critical Spacing')
 title(sprintf('p = %.2f',p));
 ylim([0.8 2.2]);
 
+%% Looking at DC instead of Area
+for ii = 1:length(unique([dataAll.SubjectID(:)]))
+    idx = [];
+    idx = find([dataAll.SubjectID(:)] == ii & ...
+            [dataAll.Perf(:)] < 3 & ...
+            [dataAll.Condition(:)] == -1);
+    areaPolyD{1,ii} = [dataAll.DC(idx)];
+    meanPerf(1,ii) = mean([dataAll.Perf(idx)]);
+    idx = [];
+    idx = find([dataAll.SubjectID(:)] == ii & ...
+            [dataAll.Perf(:)] < 3 & ...
+            [dataAll.Condition(:)] == 1);
+    areaPolyD{2,ii} = [dataAll.DC(idx)];
+    meanPerf(2,ii) = mean([dataAll.Perf(idx)]);
+end
+
+
+
+smallD = [];
+largeD = [];
+indSubBinUpper = ones(1,length(unique([dataAll.SubjectID(:)])))*75;
+indSubBinLower = ones(1,length(unique([dataAll.SubjectID(:)])))*20;
+indSubBinUpper(7) = 85;
+indSubBinUpper(13) = 30;
+indSubBinLower(13) = 20;
+indSubBinUpper(6) = 95;
+indSubBinLower(6) = 60;
+indSubBinUpper(9) = 60;
+indSubBinLower(9) = 30;
+indSubBinUpper(1) = 70;
+indSubBinLower(1) = 50;
+
+[smallD,largeD] = calculatePerfProbAtThresh(indSubBinUpper,indSubBinLower,unique([dataAll.SubjectID(:)]),...
+    dataAll,areaPolyD,'DC',1,smallD,largeD);
+
+indSubBinUpper = ones(1,length(unique([dataAll.SubjectID(:)])))*75;
+indSubBinLower = ones(1,length(unique([dataAll.SubjectID(:)])))*30;
+
+[smallD,largeD] = calculatePerfProbAtThresh(indSubBinUpper,indSubBinLower,unique([dataAll.SubjectID(:)]),...
+    dataAll,areaPolyD,'DC',2,smallD,largeD);
+
+[~,pU] = ttest(smallD.Unc.Performance,largeD.Unc.Performance);
+[~,pC] = ttest(smallD.Cro.Performance,largeD.Cro.Performance);
+
+
+
+figure;
+makePlotPerfDiffUnityLine([smallD.Unc.Performance;smallD.Cro.Performance],...
+    [largeD.Unc.Performance; largeD.Cro.Performance], pU, pC);
+suptitle('DC')
+
+figure;
+
+errorbar([1 2],([mean(smallD.Unc.Performance)-mean(meanPerf(1,:)),...
+    mean(largeD.Unc.Performance)-mean(meanPerf(1,:))]),...
+    [sem(smallD.Unc.Performance),...
+    sem(largeD.Unc.Performance)],'-d','Color','b',...
+    'MarkerFaceColor','b','MarkerSize',12);
+hold on
+errorbar([1 2],([mean(smallD.Cro.Performance)-mean(meanPerf(2,:)),...
+    mean(largeD.Cro.Performance)-mean(meanPerf(2,:))]),[sem(smallD.Cro.Performance),...
+    sem(largeD.Cro.Performance)],'-d','Color','r',...
+    'MarkerFaceColor','r','MarkerSize',12);
+xlim([0.5 2.5])
+xticks([1 2])
+xticklabels({'Small','Large'})
+xlabel('Fixation DC')
+ylabel('Change in Performance from Threshold')
+line([0.5 2.5],[0 0],'LineStyle','--');
+% yticks([.8 .9 1])
+% ylim([.78 1.05])
+
+%% Look at Speed instead of Area
+counter = 1;
+for ii = 1:size(dataAll)
+    if length(dataAll.X{counter})<499
+        Fz = 341;
+    else
+        Fz = 1000;
+    end
+    tmp_x = sgfilt(dataAll.X{counter},3,41,1);
+    tmp_y = sgfilt(dataAll.Y{counter},3,41,1);
+    x = tmp_x(floor((41/2)+10):end-floor(41/2))*Fz;
+    y = tmp_y(floor((41/2)+10):end-floor(41/2))*Fz;
+    vel_tmp = sqrt(x .^2 + y .^ 2) ;
+    speed_tmp = sqrt(x .^ 2+ y .^ 2);
+    idxSpd = speed_tmp < 100;
+    dataAll.Speed(counter) = nanmean(speed_tmp);
+    counter = counter + 1;
+end
+%%
+for ii = 1:length(unique([dataAll.SubjectID(:)]))
+    idx = [];
+    idx = find([dataAll.SubjectID(:)] == ii & ...
+            [dataAll.Perf(:)] < 3 & ...
+            [dataAll.Condition(:)] == -1);
+    areaPolyD{1,ii} = [dataAll.Speed(idx)];
+    meanPerf(1,ii) = mean([dataAll.Perf(idx)]);
+    idx = [];
+    idx = find([dataAll.SubjectID(:)] == ii & ...
+            [dataAll.Perf(:)] < 3 & ...
+            [dataAll.Condition(:)] == 1);
+    areaPolyD{2,ii} = [dataAll.Speed(idx)];
+    meanPerf(2,ii) = mean([dataAll.Perf(idx)]);
+end
+
+
+
+smallD = [];
+largeD = [];
+indSubBinUpper = ones(1,length(unique([dataAll.SubjectID(:)])))*30;
+indSubBinLower = ones(1,length(unique([dataAll.SubjectID(:)])))*70;
+
+[smallD,largeD] = calculatePerfProbAtThresh(indSubBinUpper,indSubBinLower,unique([dataAll.SubjectID(:)]),...
+    dataAll,areaPolyD,'Speed',1,smallD,largeD);
+
+indSubBinUpper = ones(1,length(unique([dataAll.SubjectID(:)])))*30;
+indSubBinLower = ones(1,length(unique([dataAll.SubjectID(:)])))*70;
+
+[smallD,largeD] = calculatePerfProbAtThresh(indSubBinUpper,indSubBinLower,unique([dataAll.SubjectID(:)]),...
+    dataAll,areaPolyD,'Speed',2,smallD,largeD);
+
+[~,pU,~,statsU] = ttest(smallD.Unc.Performance,largeD.Unc.Performance);
+[~,pC,~,statsC] = ttest(smallD.Cro.Performance,largeD.Cro.Performance);
+
+
+
+figure;
+makePlotPerfDiffUnityLine([smallD.Unc.Performance;smallD.Cro.Performance],...
+    [largeD.Unc.Performance; largeD.Cro.Performance], pU, pC);
+suptitle('Speed')
+
+figure;
+
+errorbar([1 2],([mean(smallD.Unc.Performance)-mean(meanPerf(1,:)),...
+    mean(largeD.Unc.Performance)-mean(meanPerf(1,:))]),...
+    [sem(smallD.Unc.Performance),...
+    sem(largeD.Unc.Performance)],'-d','Color','b',...
+    'MarkerFaceColor','b','MarkerSize',12);
+hold on
+errorbar([1 2],([mean(smallD.Cro.Performance)-mean(meanPerf(2,:)),...
+    mean(largeD.Cro.Performance)-mean(meanPerf(2,:))]),[sem(smallD.Cro.Performance),...
+    sem(largeD.Cro.Performance)],'-d','Color','r',...
+    'MarkerFaceColor','r','MarkerSize',12);
+xlim([0.5 2.5])
+xticks([1 2])
+xticklabels({'Small','Large'})
+xlabel('Fixation Speed')
+ylabel('Change in Performance from Threshold')
+line([0.5 2.5],[0 0],'LineStyle','--');
+% yticks([.8 .9 1])
+% ylim([.78 1.05])
+
+%% Area in each condition
+for ii = 1:length(unique([dataAll.SubjectID(:)]))
+    idxTrials = find(dataAll.SubjectID == ii & ...
+        dataAll.Condition == 1 & ...
+        dataAll.Area < 200);
+    
+    meanAreaCr(ii) = mean(dataAll.Area(idxTrials));
+    
+    idxTrials = find(dataAll.SubjectID == ii & ...
+        dataAll.Condition == -1 & ...
+        dataAll.Area < 200);
+    
+    meanAreaUn(ii) = mean(dataAll.Area(idxTrials));
+end
+
+nanmean(meanAreaCr)
+nanmean(meanAreaUn)
+nanstd(meanAreaCr)
+nanstd(meanAreaUn)
+
+[h,p,ci,stats] = ttest(meanAreaCr, meanAreaUn);
+stats
+p
+
+
+% %% Velocity as a function of crowding
+% % for ii = 1:length(unique([dataAll.SubjectID(:)]))
+% %     figure;
+% %     subplot(1,2,1)
+% %     
+%     idxTrials = find(dataAll.Condition == -1 & ...
+%         dataAll.Area < 200);
+% %    mdlu = fitlm([dataAll.Speed(idxTrials)],[dataAll.Perf(idxTrials)])
+%       mdlu = fitglm(dataAll.Speed(idxTrials),...
+%           [dataAll.Perf(idxTrials) dataAll.SubjectID(idxTrials)],...
+%            "linear","Distribution","binomial","link","logit")
+% 
+% %    plot(mdlu);
+% %    
+% %    
+% %    
+% %    subplot(1,2,2)
+% %    idxTrials = find(dataAll.SubjectID == ii & ...
+% %         dataAll.Condition == 1 & ...
+% %         dataAll.Area < 200);
+% %    mdlc = fitlm([dataAll.Speed(idxTrials)],[dataAll.Perf(idxTrials)])
+% %    plot(mdlc);
+% % end
+% 
+% nanmean(meanAreaCr)
+% nanmean(meanAreaUn)
+% 
+% [h,p,ci,stats] = ttest(meanAreaCr, meanAreaUn);
+% stats
+% p
+
+%% Testing Crowding between the two systems
+
+crowdingEffect = thresh(:,2)-thresh(:,1)
+
+[h,p,ci,stats] = ttest2(crowdingEffect(1:5),crowdingEffect(6:end));
 
 %% FUNCTIONS %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -591,7 +888,7 @@ axis([-axisValue axisValue -axisValue axisValue]);
 end
 
 function [smallD,largeD] = calculatePerfProbAtThresh(indSubBinUpper,indSubBinLower,subjectsAll,...
-    dataAll,var,var2,c,sizeFixTemp, smallD,largeD)
+    dataAll,var,var2,c,smallD,largeD)
 
 if c == 1
     cVal = -1;
@@ -649,33 +946,41 @@ end
 function makePlotPerfDiffUnityLine(smallPerf,largePerf, pU, pC)
 
 figure;
-plot(smallPerf(2,:),largePerf(2,:),'o');
+plot(smallPerf(2,:),largePerf(2,:),'o','Color','b');
 line([.4 1],[.4 1])
 subplot(1,2,1)
-plot(smallPerf(1,:),largePerf(1,:),'o');
+plot(smallPerf(1,:),largePerf(1,:),'o','Color','b');
 axis([0 1 0 1])
-xlabel('Small Area');
-ylabel('Large Area');
-line([0 1],[0 1])
+xlabel({'Performance in Trials','for Smaller Fixation Area'});
+ylabel({'Performance in Trials','for Larger Fixation Area'});
+line([0 1],[0 1],'Color',[.2 .2 .2])
 hold on
 errorbar(mean(smallPerf(1,:)),...
 mean(largePerf(1,:)),sem(smallPerf(1,:)),...
 sem(largePerf(1,:)),sem(smallPerf(1,:)),...
-sem(largePerf(1,:)),'o','MarkerSize',10);
+sem(largePerf(1,:)),'o','MarkerSize',10,'Color','k');
 title(sprintf('Uncrowded, p = %.3f', pU))
+text(.05,.9,{'better performance with','large fixation area'},...
+    'FontSize',8)
+text(.4,.1,{'better performance with','small fixation area'},...
+    'FontSize',8)
 axis square
 
 subplot(1,2,2)
-plot(smallPerf(2,:),largePerf(2,:),'o');
+plot(smallPerf(2,:),largePerf(2,:),'o','Color','r');
 axis([0 1 0 1])
-xlabel('Small Area');
-ylabel('Large Area');
-line([0 1],[0 1])
+xlabel({'Performance in Trials','for Smaller Fixation Area'});
+ylabel({'Performance in Trials','for Larger Fixation Area'});
+line([0 1],[0 1],'Color',[.2 .2 .2])
 hold on
 errorbar(mean(smallPerf(2,:)),...
 mean(largePerf(2,:)),sem(smallPerf(2,:)),sem(smallPerf(2,:)),...
-sem(largePerf(2,:)),sem(largePerf(2,:)),'o','MarkerSize',10)
+sem(largePerf(2,:)),sem(largePerf(2,:)),'o','MarkerSize',10,'Color','k')
 title(sprintf('Crowded, p = %.3f',pC))
+text(.05,.9,{'better performance with','large fixation area'},...
+    'FontSize',8)
+text(.4,.1,{'better performance with','small fixation area'},...
+    'FontSize',8)
 axis square
 end
 
