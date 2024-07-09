@@ -363,7 +363,8 @@ indSubBinUpper = ones(1,length(unique([dataAll.SubjectID(:)])))*30;
 indSubBinLower = ones(1,length(unique([dataAll.SubjectID(:)])))*70;
 [smallD,largeD] = calculatePerfProbAtThresh(indSubBinUpper,indSubBinLower,unique([dataAll.SubjectID(:)]),...
     dataAll,areaPolyA,'Area',1,smallD,largeD);
-indSubBinUpper(1) = 80;
+
+indSubBinUpper(1) = 70;
 indSubBinLower(1) = 20;
 indSubBinUpper(2) = 75;
 indSubBinLower(2) = 20;
@@ -375,7 +376,7 @@ indSubBinUpper(5) = 70;
 indSubBinLower(5) = 40;
 indSubBinUpper(6) = 60;
 indSubBinLower(6) = 60;
-indSubBinUpper(7) = 88;
+indSubBinUpper(7) = 85;
 indSubBinLower(7) = 41; 
 indSubBinUpper(8) = 60;
 indSubBinLower(8) = 50;
@@ -383,8 +384,8 @@ indSubBinUpper(9) = 70;
 indSubBinLower(9) = 20;
 indSubBinUpper(10) = 50;
 indSubBinLower(10) = 50;
-indSubBinUpper(11) = 40;
-indSubBinLower(11) = 50;
+indSubBinUpper(11) = 45;
+indSubBinLower(11) = 45;
 indSubBinUpper(12) = 50;
 indSubBinLower(12) = 30;
 indSubBinUpper(13) = 70;
@@ -411,6 +412,101 @@ std([smallD.Cro.Performance largeD.Cro.Performance])
 [h,p,ci,stats] = ttest([smallD.Unc.Performance largeD.Unc.Performance],...
     [smallD.Cro.Performance largeD.Cro.Performance])
 
+%% Fit the different thresholds based on small and large AREA
+
+xl = [0.1, 11];
+yl = [0, 1.05];
+gamma = 0.25;
+
+
+for ii = 1:length(unique([dataAll2.SubjectID(:)]))
+    for c = 1:2
+        if c == 1
+            cond = -1; %uncrowded
+        else
+            cond = 1; %crowded
+        end
+        idx = find([dataAll2.SubjectID(:)] == ii & ...
+            [dataAll2.Perf(:)] < 3 & ...
+            [dataAll2.Condition(:)] == cond);
+        
+        meanArea = median(dataAll2.Area(idx));
+        
+        idxS = find([dataAll2.SubjectID(:)] == ii & ...
+            [dataAll2.Perf(:)] < 3 & ...
+            [dataAll2.Condition(:)] == cond & ...
+            [dataAll2.Area(:)] < meanArea - (std(dataAll2.Area(idx))/3));
+        
+        [smallAreaThresh(ii,c)] = psyfitCrowding(...
+            round([dataAll2.Size(idxS)]*2,1), ... %rounding to reflect monitor resolution
+            [dataAll2.Perf(idxS)], 'DistType', 'Normal',...
+            'Xlim', xl, 'Ylim', yl,...
+            'Chance', gamma, 'Extra');
+        
+        idxL = find([dataAll2.SubjectID(:)] == ii & ...
+            [dataAll2.Perf(:)] < 3 & ...
+            [dataAll2.Condition(:)] == cond & ...
+            [dataAll2.Area(:)] > meanArea + (std(dataAll2.Area(idx))/3));
+        
+        [largeAreaThresh(ii,c)] = psyfitCrowding(...
+            round([dataAll2.Size(idxL)]*2,1), ... %rounding to reflect monitor resolution
+            [dataAll2.Perf(idxL)], 'DistType', 'Normal',...
+            'Xlim', xl, 'Ylim', yl,...
+            'Chance', gamma, 'Extra');
+        
+    end
+end
+
+
+ figure;plot([1 2],[smallAreaThresh(:,2) largeAreaThresh(:,2)],'-o')
+[h,p] = ttest([smallAreaThresh(:,2)'], [largeAreaThresh(:,2)'])
+xlim([0 3])
+xticks([1 2])
+xticklabels('Small Area','Larger Area')
+xticklabels({'Small Area','Larger Area'})
+ylabel('Threshold')
+ylim([1 4])
+title(sprintf('p = %.2f',p))
+
+%% Theoretical Figures: 
+%   3 different DC and different sizes and different spacings (color is
+%   probability of overlap where spacing is on x axis and y axis speed, the
+%   color of the bin is the probability o shared stimulation over the
+%   stimulated cones color is the probability
+
+
+% idx = find(dataAll2.DC < 100 & dataAll2.Condition ==1)
+% figure;
+% plot(dataAll2.DC(idx),dataAll2.Size(idx),'.');
+dc = [5 15 30 60];
+for d = 1:4
+    counter = 1;
+    fc = 1000;
+    N = 500; %(500ms)
+    DC = dc(d);
+    [Xe, Ye] = EM_Brownian(DC,  fc, N, 1000);
+    stimSize = .5:.5:5;
+    spacing = 0:.5:4;
+    for st = 1:length(stimSize)
+        for sp = 1:length(spacing)
+            probSameCone(st,sp) = coneAndFlankerProbability_OG([Xe(:)'],stimSize(st),spacing(sp));
+            %         spac(counter) = spacing;
+            %         siz(counter) = stimSize;
+            %         counter = counter + 1;
+        end
+    end
+    
+    subplot(2,2,d)
+    image(probSameCone,'CDataMapping','scaled')
+    yticklabels(stimSize)
+    xticks(1:length(spacing))
+    xticklabels(spacing)
+    cb = colorbar();
+    ylabel(cb,'Probability of Shared Cone Stimulation')
+    ylabel('Stimulus Width (arcmin)');
+    xlabel('Stimulus Spacing (arcmin)');
+    title(sprintf('D = %.2f arcmin^2/sec',DC));
+end
 %% Figure 4C
 figure;
 
@@ -569,6 +665,69 @@ line([0.5 2.5],[0 0],'LineStyle','--');
 % yticks([.8 .9 1])
 % ylim([.78 1.05])
 
+%% PRL
+for ii = 1:length(unique([dataAll.SubjectID(:)]))
+    idx = [];
+    idx = find([dataAll.SubjectID(:)] == ii & ...
+            [dataAll.Perf(:)] < 3 & ...
+            [dataAll.Condition(:)] == -1);
+    areaPolyD{1,ii} = [dataAll.Offset(idx)];
+    meanPerf(1,ii) = mean([dataAll.Perf(idx)]);
+    idx = [];
+    idx = find([dataAll.SubjectID(:)] == ii & ...
+            [dataAll.Perf(:)] < 3 & ...
+            [dataAll.Condition(:)] == 1);
+    areaPolyD{2,ii} = [dataAll.Offset(idx)];
+    meanPerf(2,ii) = mean([dataAll.Perf(idx)]);
+end
+
+
+
+smallD = [];
+largeD = [];
+indSubBinUpper = ones(1,length(unique([dataAll.SubjectID(:)])))*75;
+indSubBinLower = ones(1,length(unique([dataAll.SubjectID(:)])))*30;
+
+[smallD,largeD] = calculatePerfProbAtThresh(indSubBinUpper,indSubBinLower,unique([dataAll.SubjectID(:)]),...
+    dataAll,areaPolyD,'Offset',1,smallD,largeD);
+
+indSubBinUpper = ones(1,length(unique([dataAll.SubjectID(:)])))*75;
+indSubBinLower = ones(1,length(unique([dataAll.SubjectID(:)])))*30;
+
+[smallD,largeD] = calculatePerfProbAtThresh(indSubBinUpper,indSubBinLower,unique([dataAll.SubjectID(:)]),...
+    dataAll,areaPolyD,'Offset',2,smallD,largeD);
+
+[~,pU] = ttest(smallD.Unc.Performance,largeD.Unc.Performance);
+[~,pC] = ttest(smallD.Cro.Performance,largeD.Cro.Performance);
+
+
+
+figure;
+makePlotPerfDiffUnityLine([smallD.Unc.Performance;smallD.Cro.Performance],...
+    [largeD.Unc.Performance; largeD.Cro.Performance], pU, pC);
+suptitle('Offset')
+
+figure;
+
+errorbar([1 2],([mean(smallD.Unc.Performance)-mean(meanPerf(1,:)),...
+    mean(largeD.Unc.Performance)-mean(meanPerf(1,:))]),...
+    [sem(smallD.Unc.Performance),...
+    sem(largeD.Unc.Performance)],'-d','Color','b',...
+    'MarkerFaceColor','b','MarkerSize',12);
+hold on
+errorbar([1 2],([mean(smallD.Cro.Performance)-mean(meanPerf(2,:)),...
+    mean(largeD.Cro.Performance)-mean(meanPerf(2,:))]),[sem(smallD.Cro.Performance),...
+    sem(largeD.Cro.Performance)],'-d','Color','r',...
+    'MarkerFaceColor','r','MarkerSize',12);
+xlim([0.5 2.5])
+xticks([1 2])
+xticklabels({'Small','Large'})
+xlabel('Fixation DC')
+ylabel('Change in Performance from Threshold')
+line([0.5 2.5],[0 0],'LineStyle','--');
+% yticks([.8 .9 1])
+% ylim([.78 1.05])
+
 %% Look at Speed instead of Area
 counter = 1;
 for ii = 1:size(dataAll)
@@ -587,7 +746,7 @@ for ii = 1:size(dataAll)
     dataAll.Speed(counter) = nanmean(speed_tmp);
     counter = counter + 1;
 end
-%%
+
 for ii = 1:length(unique([dataAll.SubjectID(:)]))
     idx = [];
     idx = find([dataAll.SubjectID(:)] == ii & ...
@@ -904,6 +1063,7 @@ for ii = 1:length(subjectsAll)
         [dataAll.Condition] == cVal);
     
     newIdx = find([dataAll.Size(temp1)] == mode(dataAll.Size(temp1)));
+   
     sizePick = mode(dataAll.Size(temp1));
     
     forPercent(1,ii) = indSubBinUpper(ii);
