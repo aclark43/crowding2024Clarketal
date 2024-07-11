@@ -224,26 +224,27 @@ xl = [0.1, 11];
 yl = [0, 1.05];
 gamma = 0.25;
 
+load(thresh.mat);
 
-for ii = 1:length(unique([dataAll2.SubjectID(:)]))
-    for c = 1:2
-        if c == 1
-            cond = -1; %uncrowded
-        else
-            cond = 1; %crowded
-        end
-        idx = find([dataAll2.SubjectID(:)] == ii & ...
-            [dataAll2.Perf(:)] < 3 & ...
-            [dataAll2.Condition(:)] == cond);
-        
-        [thresh(ii,c)] = psyfitCrowding(...
-            round([dataAll2.Size(idx)]*2,1), ... %rounding to reflect monitor resolution
-            [dataAll2.Perf(idx)], 'DistType', 'Normal',...
-            'Xlim', xl, 'Ylim', yl,...
-            'Chance', gamma, 'Extra');
-        
-    end
-end
+%for ii = 1:length(unique([dataAll2.SubjectID(:)]))
+%    for c = 1:2
+%        if c == 1
+%            cond = -1; %uncrowded
+%        else
+%            cond = 1; %crowded
+%        end
+%        idx = find([dataAll2.SubjectID(:)] == ii & ...
+%            [dataAll2.Perf(:)] < 3 & ...
+%            [dataAll2.Condition(:)] == cond);
+%        
+%        [thresh(ii,c)] = psyfitCrowding(...
+%           round([dataAll2.Size(idx)]*2,1), ... %rounding to reflect monitor resolution
+%           [dataAll2.Perf(idx)], 'DistType', 'Normal',...
+%            'Xlim', xl, 'Ylim', yl,...
+%            'Chance', gamma, 'Extra');
+%        
+%    end
+%end
 
 
 % [h,p] = ttest2(thresh(1:5,2)-thresh(1:5,1), ...
