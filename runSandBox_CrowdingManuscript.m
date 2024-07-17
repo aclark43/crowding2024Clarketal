@@ -190,7 +190,7 @@ threshold = 2.1129; %threshold size for this subject
 
 xAll = [dataAll.X{idx}];
 yAll = [dataAll.Y{idx}];
-stVector = 0;%[-2:1:2]; %width of square stim in arcminutes
+stVector = [-2:1:2]; %width of square stim in arcminutes
 for sty = 1:length(stVector)
     for stx = 1:length(stVector)
         xT = xAll(ismember(round(xAll),...
@@ -237,7 +237,7 @@ for ii = 1:length(unique([dataAll2.SubjectID(:)]))
            [dataAll2.Perf(:)] < 3 & ...
            [dataAll2.Condition(:)] == cond);
 
-       [thresh(ii,c)] = psyfitCrowding(...
+       [thresh(ii,c),~,~,xi{ii,c},yi{ii,c}] = psyfitCrowding(...
           round([dataAll2.Size(idx)]*2,1), ... %rounding to reflect monitor resolution
           [dataAll2.Perf(idx)], 'DistType', 'Normal',...
            'Xlim', xl, 'Ylim', yl,...
@@ -247,8 +247,49 @@ for ii = 1:length(unique([dataAll2.SubjectID(:)]))
 end
 
 
-% [h,p] = ttest2(thresh(1:5,2)-thresh(1:5,1), ...
-%     thresh(6:end,2)-thresh(6:end,1));
+%% do quick check to see what the spacing thresh is and what the spacing needed to have no overlap is
+
+for ii = 1:length(unique([dataAll2.SubjectID(:)]))
+    
+    idx = find(yi{ii,2} < .95 & yi{ii,2} > .9);
+    avSpacing(ii) = mean(xi{ii,2}(idx))*1.4;
+    stimSize = mean(xi{ii,2}(idx));
+    %what spacing and size is needed to reach plateu probability for this
+    %dc
+    idxTrialsDC = find(dataAll.Condition(:) == 1 &...
+        dataAll.SubjectID(:) == ii);
+    dc = mean(find(dataAll.DC(idxTrialsDC)));
+
+    counter = 1;
+    fc = 1000;
+    N = 500; %(500ms)
+    DC = dc;
+    [Xe, Ye] = EM_Brownian(DC,  fc, N, 1000);
+%     stimSize = .5:.5:5;
+    spacing = 1:.15:20;
+    for st = 1%:length(stimSize)
+        for sp = 1:length(spacing)
+            probSameCone(st,sp) = coneAndFlankerProbability_OG([Xe(:)'],stimSize,spacing(sp));
+            %         spac(counter) = spacing;
+            %         siz(counter) = stimSize;
+            %         counter = counter + 1;
+        end
+    end
+    
+    [col,row]=find(probSameCone >.01 & probSameCone < .1)  % corresponding indices
+
+    spacingTested(ii) = nanmean(spacing(row'));
+    valUsed(ii) = value;
+
+end
+
+mdl_Sp = fitlm(spacingTested,avSpacing);
+figure;
+plot(mdl_Sp)
+xlabel('Predicted Spacing Needed from D');
+ylabel('Spacing at 92.5\% Performance');
+title(sprintf('p = %.2f',table2array(mdl_Sp.Coefficients(2,4))));
+
 %% Figure 3C
 figure;
 for ii = 1:length(unique([dataAll.SubjectID(:)]))
